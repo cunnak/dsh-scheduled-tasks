@@ -1,0 +1,4 @@
+- insert:
+    - id: dsh-scheduled-tasks
+      name: '@local/dsh-scheduled-tasks'
+      config: {}

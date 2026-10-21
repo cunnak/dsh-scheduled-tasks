@@ -1,0 +1,11 @@
+# 构建产物（安装用，勿手改）
+.build/
+
+# 状态与日志
+*.log
+state.json
+
+# 编辑器/系统
+.DS_Store
+Thumbs.db
+node_modules/

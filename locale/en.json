@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Scheduled Tasks",
+    "description": "Run prompts on a schedule in a chosen workspace: one-shot or recurring, with model, connector, skill, and expert selection."
+  }
+}
