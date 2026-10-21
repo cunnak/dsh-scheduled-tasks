@@ -1,4 +1,5 @@
-# 构建产物（安装用，勿手改）
+# 构建产物与 Release 资产（只在 GitHub Release 里分发，不进 git）
+dist/
 .build/
 
 # 状态与日志
