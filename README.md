@@ -6,14 +6,29 @@
 ## 界面
 
 - 侧栏入口：左侧面板列表里的「定时任务」（与 插件 / 自动化任务 / 技能中心 / MCP连接器 / 论衡运行 并列）。
-- 任务表单字段：任务名称、提示词、工作区、模型、专家（agent preset）、技能（chip 多选）、
+- 任务表单字段：任务名称、提示词、工作区、模型、专家（agent preset）、权限、技能（chip 多选）、
   连接器（chip 多选）、重复规则（一次性 / 固定间隔 / 每天）、执行时间。
-- 列表区：任务卡（含工作区/模型/专家/技能/连接器/下次运行时间）、立即运行、停用/启用、删除、运行历史。
+- 列表区：任务卡（含工作区/模型/专家/权限/技能/连接器/下次运行时间）、立即运行、停用/启用、删除、运行历史。
+
+### 权限
+
+「权限」下拉的档位来自 Host 侧 `permissionPresets.names`，标签与聊天输入框的权限菜单一致：
+
+| 机器值 | 标签 |
+| --- | --- |
+| `read-only` | 仅可查看 |
+| `workspace-write` | 工作区内修改 |
+| `danger-full-access` | 完全权限 |
+
+留空 = 不改动新会话的权限（用当时的默认值）。派发时在 `sessionController.create` 之后、
+`prompt` 之前调用 `permissionPresets.set(session, name)`；失败只记进该次运行的
+`permissionError`，不会中断派发。
 
 ## Host 侧行为
 
 - 调度：`ctx.timer.interval(15s)` 轮询，到期任务依次
   `sessionController.create({ workspaceId, cwd, agentPreset })` →
+  `permissionPresets.set(session, permission)`（若任务指定了权限）→
   `selectModel({ sessionId, provider, model })` →
   `prompt({ requestId, sessionId, mode:'queue', content:[{type:'text',text}], clientTimeZone:'Asia/Shanghai' }, signal)`。
 - 一次性任务派发后自动置 `enabled=false`；固定间隔以保存时刻为锚；每天按 Asia/Shanghai 计算下一次。
@@ -31,6 +46,7 @@
 | `list-models` | provider/model 扁平列表（llm） |
 | `list-experts` | agent preset 列表 |
 | `list-skills` | 技能列表（sessionSkillCatalog） |
+| `list-permissions` | 权限预设列表（permissionPresets，含产品标签） |
 | `list-connectors` | 已配置 MCP 连接器（读取 `~/.dsh/storages/mcp_connector.json`） |
 | `list-tasks` / `list-runs` | 任务 / 运行记录 |
 | `save-task` / `delete-task` / `set-enabled` / `run-now` | 增删改与立即执行 |
@@ -64,8 +80,10 @@ dsh-scheduled-tasks/            # 源码（改这里）
 `bundle-patch.yml`、`locale/`、`icon.svg`），然后按官方插件格式装配：
 
 ```bash
-# 方式一：Release 包（推荐，免构建）
-dsh plugin --profile web add <解压目录>
+mkdir dsh-scheduled-tasks && tar -xzf dsh-scheduled-tasks-1.4.1.tgz -C dsh-scheduled-tasks --strip-components=1
+
+# 方式一：本地目录装配（推荐，免构建）
+dsh plugin --profile web add ./dsh-scheduled-tasks
 
 # 方式二：git 装配
 dsh plugin --profile web add github:cunnak/dsh-scheduled-tasks

@@ -25,6 +25,7 @@ const STATE_REL = '.dsh/plugins/dsh-scheduled-tasks/state.json';
 export const inject = [
   'sessionController', 'workspaceRegistry', 'agentPresets',
   'sessionSkillCatalog', 'skills', 'llm', 'timer', 'webServer',
+  'sessions', 'permissionPresets',
 ];
 
 function firstOf(obj, keys) {
@@ -112,6 +113,8 @@ export function apply(ctx) {
     llm: ctx.llm,
     timer: ctx.timer,
     webServer: ctx.webServer,
+    sessions: ctx.sessions,
+    permissionPresets: ctx.permissionPresets,
   };
 
   // ---------- persistence ----------
@@ -175,6 +178,17 @@ export function apply(ctx) {
       .slice(0, 64);
   }
 
+  // Permission presets are owned by the permissionPresets service; the plugin
+  // only stores a preset NAME per task and applies it to the fresh session.
+  function permissionNames() {
+    try {
+      const names = svc.permissionPresets?.names;
+      return Array.isArray(names) ? names.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+
   function validateAndPrepare(input) {
     const prompt = String(input?.prompt ?? '').trim();
     if (!prompt) throw new Error('提示词不能为空');
@@ -192,6 +206,7 @@ export function apply(ctx) {
       expertId: String(input?.expertId || ''),
       skills: asList(input?.skills),
       connectors: asList(input?.connectors),
+      permission: String(input?.permission || ''),
       repeat,
       enabled: input?.enabled !== false,
       prompt,
@@ -217,6 +232,12 @@ export function apply(ctx) {
       task.timeOfDayMinutes = total;
       task.nextRunAt = computeDailyNext(task, now);
     }
+    if (task.permission) {
+      const names = permissionNames();
+      if (names.length && !names.includes(task.permission)) {
+        throw new Error('无效的权限预设：' + task.permission);
+      }
+    }
     return task;
   }
 
@@ -233,6 +254,29 @@ export function apply(ctx) {
       lines.push('\n如需外部数据或文档，请优先使用这些连接器提供的工具：' + connectors.join('、'));
     }
     return lines.join('\n');
+  }
+
+  // Apply a permission preset to the freshly created session.
+  // permissionPresets.set(session, name) is the only write path (it folds into
+  // sandbox/mode + approval events), and it needs the live Session object, so we
+  // resolve it through the sessions service. A missing preset or an unknown name
+  // is recorded on the run instead of aborting the dispatch.
+  async function applyPermission(sessionId, presetName) {
+    if (!presetName) return null;
+    const svcPerm = svc.permissionPresets;
+    if (!svcPerm || typeof svcPerm.set !== 'function') {
+      throw new Error('permissionPresets service unavailable');
+    }
+    const names = permissionNames();
+    if (names.length && !names.includes(presetName)) {
+      throw new Error('未知权限预设：' + presetName);
+    }
+    const session = svc.sessions && typeof svc.sessions.get === 'function'
+      ? svc.sessions.get(sessionId)
+      : null;
+    if (!session) throw new Error('会话不存在，无法应用权限预设');
+    svcPerm.set(session, presetName);
+    return presetName;
   }
 
   async function dispatchTask(task, now) {
@@ -253,6 +297,14 @@ export function apply(ctx) {
       const created = await svc.sessionController.create(createReq);
       const sessionId = firstOf(created || {}, ['sessionId', 'id', 'session']);
       if (!sessionId) throw new Error('session create returned no sessionId');
+      if (task.permission) {
+        try {
+          run.permission = await applyPermission(sessionId, task.permission);
+        } catch (err) {
+          run.permissionError = String((err && err.message) || err);
+          log('applyPermission failed:', run.permissionError);
+        }
+      }
       if (task.model) {
         await svc.sessionController.selectModel({
           sessionId,
@@ -500,6 +552,36 @@ export function apply(ctx) {
   });
 
   addRoute('list-connectors', async () => listMcpConnectors());
+
+  // Permission presets (read-only projection for the picker).
+  // Labels mirror the product wording used by the permission row in the chat UI
+  // (packages/client/ui-permission-presets/src/client/locales.ts) so a task's
+  // permission reads the same here as it does there.
+  const PERMISSION_LABELS = {
+    'read-only': { zh: '仅可查看', en: 'Read Only' },
+    'workspace-write': { zh: '工作区内修改', en: 'Workspace Write' },
+    'danger-full-access': { zh: '完全权限', en: 'Full access' },
+  };
+  addRoute('list-permissions', async () => {
+    const names = permissionNames();
+    return names.map((name) => {
+      let option = null;
+      try {
+        option = svc.permissionPresets.optionOf(name) || null;
+      } catch { /* unknown preset in this deployment */ }
+      const hostName = String(firstOf(option || {}, ['name']) ?? name);
+      const builtin = PERMISSION_LABELS[name];
+      // Follow the product rule: a host name only counts as "built-in" while it
+      // still equals the machine value or the stock English label.
+      const localized = builtin && (hostName === name || hostName === builtin.en);
+      return {
+        value: name,
+        name: localized ? builtin.zh : hostName,
+        label: localized ? builtin.zh : hostName,
+        description: String(firstOf(option || {}, ['description']) ?? ''),
+      };
+    });
+  });
 
   addRoute('list-tasks', async () => {
     await loadState();

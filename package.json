@@ -1,46 +1,44 @@
 {
-    "name":  "@local/dsh-scheduled-tasks",
-    "version":  "1.3.3",
-    "description":  "定时任务：WorkBuddy 式计划任务，到点在指定工作区自动新建会话并投递提示词",
-    "private":  true,
-    "type":  "module",
-    "license":  "MIT",
-    "repository":  {
-                       "type":  "git",
-                       "url":  "git+https://github.com/cunnak/dsh-scheduled-tasks.git"
-                   },
-    "keywords":  [
-                     "dsh",
-                     "dsh-plugin",
-                     "scheduled-tasks",
-                     "automation",
-                     "cordis"
-                 ],
-    "exports":  {
-                    ".":  "./runtime.js",
-                    "./client":  "./client.js",
-                    "./locale/*.json":  "./locale/*.json",
-                    "./icon":  "./icon.svg",
-                    "./package.json":  "./package.json"
-                },
-    "files":  [
-                  "runtime.js",
-                  "client.js",
-                  "locale/*.json",
-                  "icon.svg",
-                  "bundle-patch.yml",
-                  "README.md"
-              ],
-    "dsh":  {
-                "bundle":  {
-                               "patch":  "./bundle-patch.yml"
-                           },
-                "client":  {
-                               "platform":  "web",
-                               "immediately":  true,
-                               "inject":  [
-
-                                          ]
-                           }
-            }
+  "name": "@local/dsh-scheduled-tasks",
+  "version": "1.4.1",
+  "description": "定时任务：WorkBuddy 式计划任务，到点在指定工作区自动新建会话并投递提示词",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cunnak/dsh-scheduled-tasks.git"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "scheduled-tasks",
+    "automation",
+    "cordis"
+  ],
+  "exports": {
+    ".": "./runtime.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "runtime.js",
+    "client.js",
+    "locale/*.json",
+    "icon.svg",
+    "bundle-patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./bundle-patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
 }

@@ -96,7 +96,7 @@ window.__ModuleLoader__.load({
 
     const EMPTY_FORM = {
       id: '', name: '', prompt: '', workspaceId: '', cwd: '',
-      model: null, expertId: '', skills: [], connectors: [],
+      model: null, expertId: '', skills: [], connectors: [], permission: '',
       repeat: 'once', at: '', everySeconds: 3600, timeOfDayMinutes: 540,
       enabled: true,
     };
@@ -112,7 +112,7 @@ window.__ModuleLoader__.load({
     function Panel() {
       const [tasks, setTasks] = useState(null);
       const [runs, setRuns] = useState([]);
-      const [catalog, setCatalog] = useState({ workspaces: [], models: [], experts: [], skills: [], connectors: [] });
+      const [catalog, setCatalog] = useState({ workspaces: [], models: [], experts: [], skills: [], connectors: [], permissions: [] });
       const [form, setForm] = useState(null); // null = list view
       const [busy, setBusy] = useState(false);
       const [error, setError] = useState('');
@@ -121,7 +121,7 @@ window.__ModuleLoader__.load({
       const refresh = useCallback(async () => {
         try {
           const safe = (p) => p.catch(() => null);
-          const [t, r, ws, md, ex, sk, cx] = await Promise.all([
+          const [t, r, ws, md, ex, sk, cx, pm] = await Promise.all([
             api('list-tasks'),
             api('list-runs'),
             safe(api('list-workspaces')),
@@ -129,6 +129,7 @@ window.__ModuleLoader__.load({
             safe(api('list-experts')),
             safe(api('list-skills')),
             safe(api('list-connectors')),
+            safe(api('list-permissions')),
           ]);
           setTasks(t.tasks || []);
           setRuns(r.runs || []);
@@ -138,6 +139,7 @@ window.__ModuleLoader__.load({
             experts: Array.isArray(ex) ? ex : (ex?.experts || []),
             skills: Array.isArray(sk) ? sk : (sk?.skills || []),
             connectors: Array.isArray(cx) ? cx : (cx?.connectors || []),
+            permissions: Array.isArray(pm) ? pm : (pm?.permissions || []),
           });
           setError('');
         } catch (e) { setError(String(e.message || e)); }
@@ -169,6 +171,7 @@ window.__ModuleLoader__.load({
           workspaceId: task.workspaceId || '', cwd: task.cwd || '',
           model: task.model || null, expertId: task.expertId || '',
           skills: toList(task.skills), connectors: toList(task.connectors),
+          permission: task.permission || '',
           repeat: task.repeat || 'once',
           at: task.at || '', everySeconds: task.everySeconds || 3600,
           timeOfDayMinutes: task.timeOfDayMinutes || 540,
@@ -215,6 +218,12 @@ window.__ModuleLoader__.load({
         return w ? (w.title || w.path) : id;
       };
 
+      // Task cards should read like the picker, not like the machine value.
+      const permLabel = (value) => {
+        const hit = catalog.permissions.find((p) => p.value === value);
+        return (hit && (hit.label || hit.name)) || value;
+      };
+
       if (form) {
         return h('div', { style: css.root },
           h('div', { style: css.header },
@@ -244,6 +253,23 @@ window.__ModuleLoader__.load({
               field('专家（agent preset，留空 = 默认）', h('select', { style: css.select, value: form.expertId, onChange: (e) => set({ expertId: e.target.value }) },
                 h('option', { value: '' }, '（默认）'),
                 catalog.experts.map((x) => h('option', { key: x.id, value: x.id }, x.name || x.id)))),
+
+              field('权限（该任务新建会话时应用的权限预设）',
+                catalog.permissions.length
+                  ? h('select', {
+                    style: css.select,
+                    value: form.permission,
+                    onChange: (e) => set({ permission: e.target.value }),
+                  },
+                    h('option', { value: '' }, '（不修改，用默认权限）'),
+                    catalog.permissions.map((p) => h('option', { key: p.value, value: p.value },
+                      (p.label || p.name || p.value) + (p.description ? ' — ' + p.description : ''))))
+                  : h('input', {
+                    style: css.input,
+                    value: form.permission,
+                    placeholder: '留空 = 默认权限；也可填预设名，如 workspace-write / danger-full-access',
+                    onChange: (e) => set({ permission: e.target.value }),
+                  })),
 
               field('技能（可选，勾选后任务会优先使用这些 skill）',
                 h(PickList, {
@@ -314,7 +340,8 @@ window.__ModuleLoader__.load({
               '工作区：' + (t.workspaceId ? wsName(t.workspaceId) : '默认')
               + (t.cwd ? ' · ' + t.cwd : '')
               + (t.model ? ' · 模型 ' + t.model.provider + '/' + t.model.model : '')
-              + (t.expertId ? ' · 专家 ' + t.expertId : '')),
+              + (t.expertId ? ' · 专家 ' + t.expertId : '')
+              + (t.permission ? ' · 权限 ' + permLabel(t.permission) : '')),
             (toList(t.skills).length || toList(t.connectors).length) && h('div', { style: { ...css.meta, marginTop: 2 } },
               (toList(t.skills).length ? '技能：' + toList(t.skills).join('、') + ' ' : '')
               + (toList(t.connectors).length ? '连接器：' + toList(t.connectors).join('、') : '')),
